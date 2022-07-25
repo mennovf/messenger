@@ -362,22 +362,37 @@ size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
   return written;
 }
 
+uint64_t fast_hash(uint64_t h) {
+    h ^= h >> 23;
+    h *= 0x2127599bf4325c37ULL;
+    h ^= h >> 47;
+    return h;
+}
+
 uint32_t true_random() {
-  analogRead(0)
+  uint64_t h = 0xFFFFFFFFFF;
+  for (int i = 0; i < 64; ++i) {
+    h = fast_hash(h ^ analogRead(A0) );
+    delay(1);
+  }
+  return h;
 }
 
 uint32_t index_shown = 0;
 void setup() {
-    
-    randomSeed(true_random());
+    pinMode(A0, INPUT);
     Serial.begin(9600);
     my_lcd.Init_LCD();
     my_lcd.Set_Rotation(1);
     my_lcd.Fill_Screen(BLUE);
 
+    uint32_t const SEED = true_random();
+    randomSeed(SEED);
+
     uint32_t candidate;
     while ((candidate = random(0, LENGTH(LOVED_INDICES))) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
+    index_shown = candidate;
 
     uint32_t buf[128];
     read_string_into_n(index_shown, buf, LENGTH(buf));
