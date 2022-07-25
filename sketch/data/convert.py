@@ -6,6 +6,8 @@ def utf8bytes(s):
 
 HEART = b'\xe2\x9d\xa4'
 
+ADDITIONAL_CHARS = set(map(lambda bs: ord(bs.decode('utf-8')), [HEART]))
+
 chats = Path('.') / 'chat'
 selection = []
 all_chars = set()
@@ -51,5 +53,10 @@ with open('loved.h', 'w') as f:
     f.write(','.join(str(i) for i in indices))
     f.write('};\n')
 
-print(','.join(hex(c) for c in all_chars))
+all_chars |= ADDITIONAL_CHARS
+with open('codepoints.txt', 'w') as f:
+    f.write(','.join(hex(c) for c in all_chars))
+
+print(f'Stored {len(selection)} messages with {len(all_chars)} unique codepoints.')
+
 
