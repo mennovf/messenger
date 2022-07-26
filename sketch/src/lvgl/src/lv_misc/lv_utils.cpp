@@ -89,6 +89,7 @@ char * lv_utils_num_to_str(int32_t num, char * buf)
  *
  * @return a pointer to a matching item, or NULL if none exists.
  */
+//uint8_t * p = lv_utils_bsearch(&rcp, fdsc->cmaps[i].unicode_list, fdsc->cmaps[i].list_length, sizeof(fdsc->cmaps[i].unicode_list[0]), unicode_list_compare);
 void * lv_utils_bsearch(const void * key, const void * base, uint32_t n, uint32_t size,
                         int32_t (*cmp)(const void * pRef, const void * pElement))
 {

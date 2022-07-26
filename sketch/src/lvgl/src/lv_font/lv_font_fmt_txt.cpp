@@ -254,5 +254,5 @@ static int32_t kern_pair_16_compare(const void * ref, const void * element)
  */
 static int32_t unicode_list_compare(const void * ref, const void * element)
 {
-    return (*(uint16_t *)ref) - (*(uint16_t *)element);
+    return ((int32_t)(*(uint16_t *)ref) - (int32_t)(*(uint16_t *)element));
 }

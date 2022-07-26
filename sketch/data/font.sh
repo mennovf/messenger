@@ -1,1 +1,1 @@
-lv_font_conv --bpp 4 --size 16 --output roboto16.h --format lvgl --font ../../Roboto-Regular-Emoji.ttf --range $(cat codepoints.txt) --no-compress
+lv_font_conv --bpp 4 --size 16 --output roboto16.cpp --format lvgl --font ../../Roboto-Regular-Emoji.ttf --range $(cat codepoints.txt) --no-compress

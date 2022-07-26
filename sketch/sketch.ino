@@ -336,20 +336,22 @@ size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
     if ((fb & 10000000) == 0) {
       c = fb;
     }
-    if ((fb & 11100000) == 11000000) {
+    if ((fb & 0b11100000) == 0b11000000) {
       uint32_t sb = pgm_read_byte_far(start + readd++);
-      c = ((fb & 00011111) << 6) | ((sb & 00111111));
+      
+      c = ((fb & 0b00011111) << 6) | ((sb & 0b00111111));
     }
-    if ((fb & 11110000) == 11100000) {
+    if ((fb & 0b011110000) == 0b11100000) {
       uint32_t sb = pgm_read_byte_far(start + readd++);
       uint32_t tb = pgm_read_byte_far(start + readd++);
-      c = ((fb & 00011111) << 12) | ((sb & 00111111) << 6) | ((tb & 00111111));
+     
+      c = ((fb & 0b00011111) << 12) | ((sb & 0b00111111) << 6) | ((tb & 0b00111111));
     }
-    if ((fb & 11110000) == 11110000) {
+    if ((fb & 0b11110000) == 0b11110000) {
       uint32_t sb = pgm_read_byte_far(start + readd++);
       uint32_t tb = pgm_read_byte_far(start + readd++);
       uint32_t fb = pgm_read_byte_far(start + readd++);
-      c = ((fb & 00011111) << 18) | ((sb & 00111111) << 12) | ((tb & 00111111) << 6) | ((fb & 00111111));
+      c = ((fb & 0b00011111) << 18) | ((sb & 0b00111111) << 12) | ((tb & 0b00111111) << 6) | ((fb & 0b00111111));
     }
     buf[written] = c;
     ++written;
@@ -382,6 +384,8 @@ uint32_t index_shown = 0;
 void setup() {
     pinMode(A0, INPUT);
     Serial.begin(9600);
+
+    
     my_lcd.Init_LCD();
     my_lcd.Set_Rotation(1);
     my_lcd.Fill_Screen(BLUE);
@@ -393,6 +397,7 @@ void setup() {
     while ((candidate = random(0, LENGTH(LOVED_INDICES))) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
+    index_shown = 215;
 
     uint32_t buf[128];
     read_string_into_n(index_shown, buf, LENGTH(buf));

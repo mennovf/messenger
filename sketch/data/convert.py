@@ -30,6 +30,7 @@ for mfile in chats.glob('message_*.json'):
                     break
             else:
                 continue
+
             content = bytearray(m['content'].encode('utf-8'))
             replace_sequences = []
             for i, _ in enumerate(content[:-5]):
@@ -54,6 +55,7 @@ with open('loved.h', 'w') as f:
     f.write('};\n')
 
 all_chars |= ADDITIONAL_CHARS
+all_chars = {c for c in all_chars if c >= 32 and c < 30000}
 with open('codepoints.txt', 'w') as f:
     f.write(','.join(hex(c) for c in all_chars))
 
