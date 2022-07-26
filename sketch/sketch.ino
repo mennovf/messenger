@@ -380,39 +380,38 @@ uint32_t true_random() {
   return h;
 }
 
+
+// GLOBALS
 uint32_t index_shown = 0;
-void setup() {
-    pinMode(A0, INPUT);
-    Serial.begin(9600);
+uint64_t change_period_ms = 5*1000;
 
-    
-    my_lcd.Init_LCD();
-    my_lcd.Set_Rotation(1);
-    my_lcd.Fill_Screen(BLUE);
 
-    uint32_t const SEED = true_random();
-    randomSeed(SEED);
-
+void next_message() {
     uint32_t candidate;
     while ((candidate = random(0, LENGTH(LOVED_INDICES))) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
-    index_shown = 215;
+    //index_shown = 215; é and emoji
 
     uint32_t buf[128];
     read_string_into_n(index_shown, buf, LENGTH(buf));
 
-    WrappedDesc wrapping = text_wrapping(buf, 110);
+    // Preparations for drawing
+    WrappedDesc wrapping = text_wrapping(buf, 150);
 
     uint16_t const cx = 480 / 2, cy = 320 / 2;
-
     const uint16_t SPACING = 2;
     uint16_t text_height = roboto16.line_height * wrapping.nlines + SPACING*(wrapping.nlines - 1);
 
     uint16_t bw = wrapping.line_width + 40, bh = text_height + 40;
-    
+
+    // Clear   
+    my_lcd.Fill_Screen(BLUE);
+
+    // Draw box
     draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, RED);
-    
+
+    // Draw the text
     uint16_t top = cy - text_height/2;
     uint16_t left = cx - wrapping.line_width / 2;
     for (int i = 0; i < wrapping.nlines; ++i) {
@@ -422,7 +421,29 @@ void setup() {
       buf[wrapping.lines[i].end] = prev;
       top += roboto16.line_height + SPACING;
     }
+}
+
+void setup() {
+    pinMode(A0, INPUT);
+    Serial.begin(9600);
     
+    my_lcd.Init_LCD();
+    my_lcd.Set_Rotation(3);
+
+    uint32_t const SEED = true_random();
+    randomSeed(SEED);
+
+    next_message();
+    uint64_t last_change_at = millis();
+    do {
+      uint64_t const now = millis();
+      if (now - last_change_at > change_period_ms) {
+        next_message();
+        last_change_at = now;
+      }
+      
+    } while (true);
+   
 /*
     //Init SD_Card
     pinMode(53, OUTPUT);
