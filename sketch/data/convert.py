@@ -55,7 +55,7 @@ with open('loved.h', 'w') as f:
     f.write('};\n')
 
 all_chars |= ADDITIONAL_CHARS
-all_chars = {c for c in all_chars if c >= 32 and c < 30000}
+all_chars = {c for c in all_chars if c >= 32}
 with open('codepoints.txt', 'w') as f:
     f.write(','.join(hex(c) for c in all_chars))
 

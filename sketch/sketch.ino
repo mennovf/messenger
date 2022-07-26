@@ -348,10 +348,10 @@ size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
       c = ((fb & 0b00011111) << 12) | ((sb & 0b00111111) << 6) | ((tb & 0b00111111));
     }
     if ((fb & 0b11110000) == 0b11110000) {
-      uint32_t sb = pgm_read_byte_far(start + readd++);
-      uint32_t tb = pgm_read_byte_far(start + readd++);
-      uint32_t fb = pgm_read_byte_far(start + readd++);
-      c = ((fb & 0b00011111) << 18) | ((sb & 0b00111111) << 12) | ((tb & 0b00111111) << 6) | ((fb & 0b00111111));
+      uint32_t b2 = pgm_read_byte_far(start + readd++);
+      uint32_t b3 = pgm_read_byte_far(start + readd++);
+      uint32_t b4 = pgm_read_byte_far(start + readd++);
+      c = ((fb & 0b00000111) << 18) | ((b2 & 0b00111111) << 12) | ((b3 & 0b00111111) << 6) | ((b4 & 0b00111111));
     }
     buf[written] = c;
     ++written;
