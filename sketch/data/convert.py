@@ -8,6 +8,9 @@ HEART = b'\xe2\x9d\xa4'
 
 ADDITIONAL_CHARS = set(map(lambda bs: ord(bs.decode('utf-8')), [HEART]))
 
+def bmpify(s):
+    return (s[0]['uri'].split('/')[-1].split('.')[0] + '.bmp').encode('utf-8')
+
 chats = Path('.') / 'chat'
 selection = []
 all_chars = set()
@@ -20,8 +23,7 @@ for mfile in chats.glob('message_*.json'):
         for m in messages:
             if m['sender_name'] != 'Menno Vanfrachem':
                 continue
-            if 'content' not in m:
-                continue
+
             if 'reactions' not in m:
                 continue
             reactions = m['reactions']
@@ -31,14 +33,29 @@ for mfile in chats.glob('message_*.json'):
             else:
                 continue
 
-            content = bytearray(m['content'].encode('utf-8'))
-            replace_sequences = []
-            for i, _ in enumerate(content[:-5]):
-                if content[i:i+4] == b'\\u00':
-                    replace_sequences.append(content[i:i+6])
-            for rs in replace_sequences:
-                content = content.replace(rs, bytes.fromhex(rs[4:].decode('utf-8')))
-            selection.append(content + b'\0')
+            # Determine the type
+            if 'content' in m:
+                mtype = b'0'
+                content = bytearray(m['content'].encode('utf-8'))
+                replace_sequences = []
+                for i, _ in enumerate(content[:-5]):
+                    if content[i:i+4] == b'\\u00':
+                        replace_sequences.append(content[i:i+6])
+                for rs in replace_sequences:
+                    content = content.replace(rs, bytes.fromhex(rs[4:].decode('utf-8')))
+            elif 'photos' in m:
+                mtype = b'1'
+                content = bmpify(m['photos'])
+            elif 'videos' in m:
+                mtype = b'1'
+                content = bmpify(m['videos'])
+            elif 'gifs' in m:
+                mtype = b'1'
+                content = bmpify(m['gifs'])
+            else:
+                continue
+
+            selection.append(mtype + content + b'\0')
             all_chars |= {ord(c) for c in content.decode('utf-8')}
 
 indices = [0]

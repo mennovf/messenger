@@ -385,6 +385,10 @@ uint32_t true_random() {
 uint32_t index_shown = 0;
 uint64_t change_period_ms = 5*1000;
 
+enum MessageType {
+  STRING,
+  IMAGE
+}
 
 void next_message() {
     uint32_t candidate;
@@ -393,8 +397,10 @@ void next_message() {
     index_shown = candidate;
     //index_shown = 215; é and emoji
 
-    uint32_t buf[128];
+    uint32_t buf[130];
     read_string_into_n(index_shown, buf, LENGTH(buf));
+
+    
 
     // Preparations for drawing
     WrappedDesc wrapping = text_wrapping(buf, 150);
