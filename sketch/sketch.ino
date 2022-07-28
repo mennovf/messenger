@@ -324,45 +324,30 @@ uint16_t draw_string(uint16_t left, uint16_t top, uint32_t const * str, uint16_t
   return left;
 }
 
-size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
-  File f = SD.open("messages");
-  uint32_t const n_messages = read32(f);
-  if (index >= n_messages && n > 0) {
-    buf[0] = '\0';
-    f.close();
-    return;
-  }
-
-  uint32_t const DATA_START = 4 + index*4;
-  f.seek(DATA_START);
-  uint32_t const STR_START = read32(f);
-  
+size_t read_string_into_n(File * const f, uint32_t * buf, size_t n) {
   size_t written = 0;
-  uint32_t readd = 0;
-  
-  f.seek(STR_START);
   
   while (written < n) {
     uint32_t c = 0;
-    uint32_t const fb = f.read();
+    uint32_t const fb = f->read();
     if ((fb & 10000000) == 0) {
       c = fb;
     }
     if ((fb & 0b11100000) == 0b11000000) {
-      uint32_t sb = f.read();
+      uint32_t sb = f->read();
       
       c = ((fb & 0b00011111) << 6) | ((sb & 0b00111111));
     }
     if ((fb & 0b011110000) == 0b11100000) {
-      uint32_t sb = f.read();
-      uint32_t tb = f.read();
+      uint32_t sb = f->read();
+      uint32_t tb = f->read();
      
       c = ((fb & 0b00011111) << 12) | ((sb & 0b00111111) << 6) | ((tb & 0b00111111));
     }
     if ((fb & 0b11110000) == 0b11110000) {
-      uint32_t b2 = f.read();
-      uint32_t b3 = f.read();
-      uint32_t b4 = f.read();
+      uint32_t b2 = f->read();
+      uint32_t b3 = f->read();
+      uint32_t b4 = f->read();
       c = ((fb & 0b00000111) << 18) | ((b2 & 0b00111111) << 12) | ((b3 & 0b00111111) << 6) | ((b4 & 0b00111111));
     }
     buf[written] = c;
@@ -373,7 +358,6 @@ size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
     }
   }
   buf[n - 1] = '\0';
-  f.close();
   return written;
 }
 
@@ -399,45 +383,62 @@ uint32_t index_shown = 0;
 uint64_t change_period_ms = 5*1000;
 
 enum MessageType {
-  STRING,
-  IMAGE
-}
+  STRING = 0,
+  IMAGE = 1
+};
+
+#define COLOR_BG (BLUE)
 
 void next_message() {
+    File f = SD.open("messages");
+    uint32_t const n_messages = read32(f);
+    
     uint32_t candidate;
-    while ((candidate = random(0, LENGTH(LOVED_INDICES))) == index_shown);
+    while ((candidate = random(0, n_messages)) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
     //index_shown = 215; é and emoji
 
-    uint32_t buf[130];
-    read_string_into_n(index_shown, buf, LENGTH(buf));
+    uint32_t const DATA_START = 4 + index_shown*4;
+    f.seek(DATA_START);
+    uint32_t const MSG_START = read32(f);
+    
+    f.seek(MSG_START);
+    MessageType msg_type = static_cast<MessageType>(f.read());
 
-    // Preparations for drawing
-    WrappedDesc wrapping = text_wrapping(buf, 150);
+    if (msg_type == MessageType::STRING) {
+      uint32_t buf[130];
+      read_string_into_n(&f, buf, LENGTH(buf));
 
-    uint16_t const cx = 480 / 2, cy = 320 / 2;
-    const uint16_t SPACING = 2;
-    uint16_t text_height = roboto16.line_height * wrapping.nlines + SPACING*(wrapping.nlines - 1);
+      // Preparations for drawing
+      WrappedDesc wrapping = text_wrapping(buf, 150);
 
-    uint16_t bw = wrapping.line_width + 40, bh = text_height + 40;
-
-    // Clear   
-    my_lcd.Fill_Screen(BLUE);
-
-    // Draw box
-    draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, RED);
-
-    // Draw the text
-    uint16_t top = cy - text_height/2;
-    uint16_t left = cx - wrapping.line_width / 2;
-    for (int i = 0; i < wrapping.nlines; ++i) {
-      uint32_t const prev = buf[wrapping.lines[i].end];
-      buf[wrapping.lines[i].end] = '\0';
-      draw_string(left, top, &buf[wrapping.lines[i].start], YELLOW, RED);
-      buf[wrapping.lines[i].end] = prev;
-      top += roboto16.line_height + SPACING;
+      uint16_t const cx = 480 / 2, cy = 320 / 2;
+      const uint16_t SPACING = 2;
+      uint16_t text_height = roboto16.line_height * wrapping.nlines + SPACING*(wrapping.nlines - 1);
+  
+      uint16_t bw = wrapping.line_width + 40, bh = text_height + 40;
+  
+      // Clear   
+      my_lcd.Fill_Screen(COLOR_BG);
+  
+      // Draw box
+      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, RED);
+  
+      // Draw the text
+      uint16_t top = cy - text_height/2;
+      uint16_t left = cx - wrapping.line_width / 2;
+      for (int i = 0; i < wrapping.nlines; ++i) {
+        uint32_t const prev = buf[wrapping.lines[i].end];
+        buf[wrapping.lines[i].end] = '\0';
+        draw_string(left, top, &buf[wrapping.lines[i].start], YELLOW, RED);
+        buf[wrapping.lines[i].end] = prev;
+        top += roboto16.line_height + SPACING;
+      }
+    } else {  
+      my_lcd.Fill_Screen(COLOR_BG);
     }
+    f.close(); 
 }
 
 void setup() {
