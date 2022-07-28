@@ -62,6 +62,7 @@ for mfile in chats.glob('message_*.json'):
 indices = [0]
 for s in selection:
     indices.append(len(s) + indices[-1])
+indices = indices[:-1] # Last offset points into the void
 
 if False:
     with open('loved.h', 'w') as f:
