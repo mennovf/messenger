@@ -58,7 +58,7 @@ uint16_t s_heigh = my_lcd.Get_Display_Height();
 
 char file_name[FILE_NUMBER][FILE_NAME_SIZE_MAX];
 
-uint16_t read_16(File fp) {
+uint16_t read16(File fp) {
     uint8_t low;
     uint16_t high;
     low = fp.read();
@@ -66,40 +66,40 @@ uint16_t read_16(File fp) {
     return (high<<8)|low;
 }
 
-uint32_t read_32(File fp) {
+uint32_t read32(File fp) {
     uint16_t low;
     uint32_t high;
-    low = read_16(fp);
-    high = read_16(fp);
-    return (high<<8)|low;   
+    low = read16(fp);
+    high = read16(fp);
+    return (high<<16)|low;   
  }
  
 bool analysis_bpm_header(File fp) {
-    if(read_16(fp) != 0x4D42)
+    if(read16(fp) != 0x4D42)
     {
       return false;  
     }
     //get bpm size
-    read_32(fp);
+    read32(fp);
     //get creator information
-    read_32(fp);
+    read32(fp);
     //get offset information
-    bmp_offset = read_32(fp);
+    bmp_offset = read32(fp);
     //get DIB infomation
-    read_32(fp);
+    read32(fp);
     //get width and heigh information
-    uint32_t bpm_width = read_32(fp);
-    uint32_t bpm_heigh = read_32(fp);
+    uint32_t bpm_width = read32(fp);
+    uint32_t bpm_heigh = read32(fp);
     if((bpm_width != s_width) || (bpm_heigh != s_heigh))
     {
       return false; 
     }
-    if(read_16(fp) != 1)
+    if(read16(fp) != 1)
     {
         return false;
     }
-    read_16(fp);
-    if(read_32(fp) != 0)
+    read16(fp);
+    if(read32(fp) != 0)
     {
       return false; 
      }
@@ -325,32 +325,44 @@ uint16_t draw_string(uint16_t left, uint16_t top, uint32_t const * str, uint16_t
 }
 
 size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
-  uint32_t off = pgm_read_dword_far(pgm_get_far_address(LOVED_INDICES) + index*sizeof(uint32_t));
+  File f = SD.open("messages");
+  uint32_t const n_messages = read32(f);
+  if (index >= n_messages && n > 0) {
+    buf[0] = '\0';
+    f.close();
+    return;
+  }
+
+  uint32_t const DATA_START = 4 + index*4;
+  f.seek(DATA_START);
+  uint32_t const STR_START = read32(f);
+  
   size_t written = 0;
   uint32_t readd = 0;
-  uint_farptr_t const start = pgm_get_far_address(LOVED) + off;
+  
+  f.seek(STR_START);
   
   while (written < n) {
     uint32_t c = 0;
-    uint32_t const fb = pgm_read_byte_far(start + readd++);
+    uint32_t const fb = f.read();
     if ((fb & 10000000) == 0) {
       c = fb;
     }
     if ((fb & 0b11100000) == 0b11000000) {
-      uint32_t sb = pgm_read_byte_far(start + readd++);
+      uint32_t sb = f.read();
       
       c = ((fb & 0b00011111) << 6) | ((sb & 0b00111111));
     }
     if ((fb & 0b011110000) == 0b11100000) {
-      uint32_t sb = pgm_read_byte_far(start + readd++);
-      uint32_t tb = pgm_read_byte_far(start + readd++);
+      uint32_t sb = f.read();
+      uint32_t tb = f.read();
      
       c = ((fb & 0b00011111) << 12) | ((sb & 0b00111111) << 6) | ((tb & 0b00111111));
     }
     if ((fb & 0b11110000) == 0b11110000) {
-      uint32_t b2 = pgm_read_byte_far(start + readd++);
-      uint32_t b3 = pgm_read_byte_far(start + readd++);
-      uint32_t b4 = pgm_read_byte_far(start + readd++);
+      uint32_t b2 = f.read();
+      uint32_t b3 = f.read();
+      uint32_t b4 = f.read();
       c = ((fb & 0b00000111) << 18) | ((b2 & 0b00111111) << 12) | ((b3 & 0b00111111) << 6) | ((b4 & 0b00111111));
     }
     buf[written] = c;
@@ -361,6 +373,7 @@ size_t read_string_into_n(uint32_t index, uint32_t * buf, size_t n) {
     }
   }
   buf[n - 1] = '\0';
+  f.close();
   return written;
 }
 
@@ -399,8 +412,6 @@ void next_message() {
 
     uint32_t buf[130];
     read_string_into_n(index_shown, buf, LENGTH(buf));
-
-    
 
     // Preparations for drawing
     WrappedDesc wrapping = text_wrapping(buf, 150);
