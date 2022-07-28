@@ -408,7 +408,8 @@ void next_message() {
 
     if (msg_type == MessageType::STRING) {
       uint32_t buf[130];
-      read_string_into_n(&f, buf, LENGTH(buf));
+      read_string_into_n(&f, buf, LENGTH(buf));     
+      f.close(); 
 
       // Preparations for drawing
       WrappedDesc wrapping = text_wrapping(buf, 150);
@@ -437,8 +438,32 @@ void next_message() {
       }
     } else {  
       my_lcd.Fill_Screen(COLOR_BG);
+
+      char buf[100] = "images/";
+      for (int i = 7; i < sizeof(buf); ++i) {
+        char const b = f.read();
+        buf[i] = b;
+        if (b == '\0') break;
+      }
+      f.close();
+
+      File imgf = SD.open(buf);
+      if (!imgf) {
+        Serial.print("Could not read file ("); Serial.print(index_shown); Serial.print("): "); Serial.println(buf);
+        imgf.close();
+        return;
+      }
+
+      if (!analysis_bpm_header(imgf)) {
+        Serial.print("Not a valid bmp ("); Serial.print(index_shown); Serial.print("): "); Serial.println(buf);
+        imgf.close();
+        return;
+      }
+
+      draw_bmp_picture(imgf);
+      
     }
-    f.close(); 
+
 }
 
 void setup() {
