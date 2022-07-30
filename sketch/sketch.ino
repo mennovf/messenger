@@ -157,8 +157,7 @@ void draw_bmp_picture(BmpHeader header, File fp) {
 
 
 
-void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uint16_t width, uint16_t height, uint16_t color) {
-  uint16_t R = 20;
+void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uint16_t width, uint16_t height, uint16_t R, uint16_t color) {
   lcd->Fill_Rect(left + R, top, width - 2*R, height, color);
   lcd->Fill_Rect(left, top + R, R, height - 2*R, color);
   lcd->Fill_Rect(left + width - R, top + R, R, height - 2*R, color);
@@ -279,7 +278,7 @@ WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
       // Go try the next line if there's already content on this one
       if (line_width > 0) {
         res.nlines += 1;
-        res.line_width = max_width;
+        res.line_width = MAX(res.line_width, line_width);
         line_width = 0;
         res.lines[res.nlines].start = word_begin;
   
@@ -318,7 +317,7 @@ WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
         // Go fill the next line (if this one was filled)
         if (part_width >= max_width) {
           res.nlines += 1;
-          res.line_width = max_width;
+          res.line_width = MAX(res.line_width, part_width);
           res.lines[res.nlines].start = word_begin;
           line_width = 0;
         }
@@ -426,7 +425,7 @@ void next_message() {
     while ((candidate = random(0, n_messages)) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
-
+    //index_shown = 53; // Too narrow
     
     uint32_t const offset_addr = 4 + index_shown*4;
     f.seek(offset_addr);
@@ -440,20 +439,23 @@ void next_message() {
       read_string_into_n(&f, buf, LENGTH(buf));     
       f.close(); 
 
+      
+      uint16_t const R = 20;
+      uint16_t const W = 150;
       // Preparations for drawing
-      WrappedDesc wrapping = text_wrapping(buf, 150);
+      WrappedDesc wrapping = text_wrapping(buf, W);
 
       uint16_t const cx = 480 / 2, cy = 320 / 2;
       const uint16_t SPACING = 2;
       uint16_t text_height = roboto16.line_height * wrapping.nlines + SPACING*(wrapping.nlines - 1);
   
-      uint16_t bw = wrapping.line_width + 40, bh = text_height + 40;
+      uint16_t bw = wrapping.line_width + 2*R, bh = text_height + 2*R;
   
       // Clear   
       my_lcd.Fill_Screen(COLOR_BG);
   
       // Draw box
-      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, RED);
+      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, R, RED);
   
       // Draw the text
       uint16_t top = cy - text_height/2;
