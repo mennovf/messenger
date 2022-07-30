@@ -47,88 +47,112 @@ LCDWIKI_KBV my_lcd(ILI9486,40,38,39,1,41); //model,cs,cd,wr,rd,reset
 
 #define LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define PIXEL_NUMBER  (my_lcd.Get_Display_Width()/4)
-#define FILE_NUMBER 10
-#define FILE_NAME_SIZE_MAX 20
+uint16_t s_width;  
+uint16_t s_height;
 
-uint32_t bmp_offset = 0;
-uint16_t s_width = my_lcd.Get_Display_Width();  
-uint16_t s_heigh = my_lcd.Get_Display_Height();
-//int16_t PIXEL_NUMBER;
-
-char file_name[FILE_NUMBER][FILE_NAME_SIZE_MAX];
+uint16_t read16le(File fp) {
+    uint16_t const low = fp.read();
+    uint16_t const high = fp.read();
+    return (high<<8)|low;
+}
+uint32_t read32le(File fp) {
+    uint32_t const low = read16le(fp);
+    uint32_t const high = read16le(fp);
+    return (high << 16) | low;   
+}
 
 uint16_t read16(File fp) {
-    uint8_t low;
-    uint16_t high;
-    low = fp.read();
-    high = fp.read();
+    uint16_t const high = fp.read();
+    uint16_t const low = fp.read();
     return (high<<8)|low;
 }
 
 uint32_t read32(File fp) {
-    uint16_t low;
-    uint32_t high;
-    low = read16(fp);
-    high = read16(fp);
-    return (high<<16)|low;   
- }
- 
-bool analysis_bpm_header(File fp) {
-    if(read16(fp) != 0x4D42)
-    {
-      return false;  
-    }
-    //get bpm size
-    read32(fp);
-    //get creator information
-    read32(fp);
-    //get offset information
-    bmp_offset = read32(fp);
-    //get DIB infomation
-    read32(fp);
-    //get width and heigh information
-    uint32_t bpm_width = read32(fp);
-    uint32_t bpm_heigh = read32(fp);
-    if((bpm_width != s_width) || (bpm_heigh != s_heigh))
-    {
-      return false; 
-    }
-    if(read16(fp) != 1)
-    {
-        return false;
-    }
-    read16(fp);
-    if(read32(fp) != 0)
-    {
-      return false; 
-     }
-     return true;
+    uint32_t const high = read16(fp);
+    uint32_t const low = read16(fp);
+    return (high << 16) | low;   
 }
 
-void draw_bmp_picture(File fp) {
-  uint16_t i,j,k,l,m=0;
-  uint8_t bpm_data[PIXEL_NUMBER*3] = {0};
-  uint16_t bpm_color[PIXEL_NUMBER];
-  fp.seek(bmp_offset);
-  for(i = 0;i < s_heigh;i++)
-  {
-    for(j = 0;j<s_width/PIXEL_NUMBER;j++)
-    {
-      m = 0;
-      fp.read(bpm_data,PIXEL_NUMBER*3);
-      for(k = 0;k<PIXEL_NUMBER;k++)
-      {
-        bpm_color[k]= my_lcd.Color_To_565(bpm_data[m+2], bpm_data[m+1], bpm_data[m+0]);
-        m +=3;
+struct BmpHeader {
+  uint32_t width;
+  uint32_t height;
+  uint32_t offset;
+  uint8_t bpp;
+  bool valid;
+};
+ 
+BmpHeader analysis_bpm_header(File fp) {
+    BmpHeader header;
+    memset(&header, 0, sizeof(header));
+    
+    if(read16le(fp) != 0x4D42) {
+      Serial.println("Magic bytes don't match.");
+      return header;  
+    }
+    //get bpm size
+    read32le(fp);
+    //get creator information
+    read32le(fp);
+    //get offset information
+    header.offset = read32le(fp);
+    //get DIB infomation
+    uint32_t const dib_size = read32le(fp);
+    if (dib_size != 124) {
+      Serial.print(fp.name()); Serial.println(" does not use BITMAPV5HEADER DIB header.");
+      return header;
+    }
+    //get width and heigh information
+    header.width  = read32le(fp);
+    header.height = read32le(fp);
+    
+    read16le(fp);
+    header.bpp = read16le(fp);
+    if (!( header.bpp == 24 || header.bpp == 32 )) {
+      Serial.print(fp.name()); Serial.println(" does not have RGB encoding.");
+      return header;
+    }
+    // Compression type should be None
+    uint32_t const compression = read32le(fp);
+    if(compression != 0) {
+      Serial.print(fp.name()); Serial.print(" use compression="); Serial.println(compression);
+      return header; 
+    }
+    header.valid = true;
+    return header;
+}
+
+#define BMP_PIXEL_BUF_AMOUNT (32)
+
+static uint8_t  data[BMP_PIXEL_BUF_AMOUNT*4] = {0};
+static uint16_t colors[BMP_PIXEL_BUF_AMOUNT];
+
+void draw_bmp_picture(BmpHeader header, File fp) {
+  uint16_t const LEFT_END = s_width/2 + (header.width / 2) + 2*(header.width & 0x1);
+  uint16_t const LEFT_BEGIN = s_width/2 - header.width / 2;
+  uint16_t left = LEFT_BEGIN;
+  uint16_t top  = s_height/2 + header.height / 2;
+
+  uint32_t pixels_left = header.width * header.height;
+  uint8_t const Bpp = header.bpp / 8;
+  
+  fp.seek(header.offset);
+  while (pixels_left > 0) {
+    size_t m = 0;
+    fp.read(data, BMP_PIXEL_BUF_AMOUNT*Bpp);
+    for (size_t k = 0; k < BMP_PIXEL_BUF_AMOUNT; k++) {
+      colors[k] = my_lcd.Color_To_565(data[m+2], data[m+1], data[m+0]);
+      m += Bpp;
+    }
+    for (size_t l = 0; l < BMP_PIXEL_BUF_AMOUNT && pixels_left; l++) {
+      my_lcd.Draw_Pixe(left, top, colors[l]);
+      pixels_left -= 1;
+      left += 1;
+      if (left == LEFT_END) {
+        left = LEFT_BEGIN;
+        top -= 1;
       }
-      for(l = 0;l<PIXEL_NUMBER;l++)
-      {
-        my_lcd.Set_Draw_color(bpm_color[l]);
-        my_lcd.Draw_Pixel(j*PIXEL_NUMBER+l,i);
-      }    
-     }
-   }    
+    }
+  }  
 }
 
 
@@ -390,21 +414,26 @@ enum MessageType {
 #define COLOR_BG (BLUE)
 
 void next_message() {
-    File f = SD.open("messages");
+    File f = SD.open("/messages", FILE_READ);
+    if (!f) {
+      Serial.println("Unable to open messages file.");
+      return;
+    }
     uint32_t const n_messages = read32(f);
-    
+    uint32_t const msg_start = 4 + 4*n_messages; // (Last offset points to bmp data area)
+   
     uint32_t candidate;
     while ((candidate = random(0, n_messages)) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
-    //index_shown = 215; é and emoji
 
-    uint32_t const DATA_START = 4 + index_shown*4;
-    f.seek(DATA_START);
-    uint32_t const MSG_START = read32(f);
     
-    f.seek(MSG_START);
-    MessageType msg_type = static_cast<MessageType>(f.read());
+    uint32_t const offset_addr = 4 + index_shown*4;
+    f.seek(offset_addr);
+    uint32_t const msg_offset = read32(f);
+
+    f.seek(msg_start + msg_offset);
+    uint8_t const msg_type = f.read();
 
     if (msg_type == MessageType::STRING) {
       uint32_t buf[130];
@@ -439,28 +468,28 @@ void next_message() {
     } else {  
       my_lcd.Fill_Screen(COLOR_BG);
 
-      char buf[100] = "images/";
-      for (int i = 7; i < sizeof(buf); ++i) {
-        char const b = f.read();
-        buf[i] = b;
-        if (b == '\0') break;
-      }
+      //8.3 filenames
+      char fname[21] = "/images/";
+      f.read(&fname[8], 12);
+      fname[8+12] = '\0';
       f.close();
 
-      File imgf = SD.open(buf);
+      File imgf = SD.open(fname, FILE_READ);
       if (!imgf) {
-        Serial.print("Could not read file ("); Serial.print(index_shown); Serial.print("): "); Serial.println(buf);
+        Serial.print("Could not read file ("); Serial.print(index_shown); Serial.print("): "); Serial.println(fname);
         imgf.close();
         return;
       }
 
-      if (!analysis_bpm_header(imgf)) {
-        Serial.print("Not a valid bmp ("); Serial.print(index_shown); Serial.print("): "); Serial.println(buf);
+      BmpHeader const header = analysis_bpm_header(imgf);
+      if (!header.valid) {
+        Serial.print("Not a valid bmp ("); Serial.print(index_shown); Serial.print("): "); Serial.println(fname);
         imgf.close();
         return;
       }
+      Serial.print("Valid bmp header in  "); Serial.println(fname);
 
-      draw_bmp_picture(imgf);
+      draw_bmp_picture(header, imgf);
       
     }
 
@@ -472,9 +501,19 @@ void setup() {
     
     my_lcd.Init_LCD();
     my_lcd.Set_Rotation(3);
+    s_width = my_lcd.Get_Display_Width();
+    s_height = my_lcd.Get_Display_Height();
 
     uint32_t const SEED = true_random();
     randomSeed(SEED);
+
+    //Init SD_Card
+    pinMode(53, OUTPUT);
+    if (!SD.begin(53)) {
+      Serial.println("Unable to begin SD!");
+      my_lcd.Fill_Screen(RED);
+      while (true);
+    }
 
     next_message();
     uint64_t last_change_at = millis();
@@ -486,17 +525,6 @@ void setup() {
       }
       
     } while (true);
-   
-/*
-    //Init SD_Card
-    pinMode(53, OUTPUT);
-    if (!SD.begin(53)) {
-      my_lcd.Set_Text_Back_colour(BLUE);
-      my_lcd.Set_Text_colour(WHITE);    
-      my_lcd.Set_Text_Size(1);
-      my_lcd.Print_String("SD Card Init fail!",0,0);
-    }
-    */
 }
 
 void loop() {
