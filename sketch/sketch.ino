@@ -265,8 +265,12 @@ WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
         continue;
     }
 
+    uint16_t const char_width = lv_draw_letter(draw_nopixel, 0, 0, &roboto16, c, n, 0, 0);
+    word_width += char_width;
+    
     if (is_word_break(c)) {
-      if (line_width + word_width < max_width) {
+      // Don't take whitespace width into account for wrapping purposes
+      if (line_width + word_width - char_width < max_width) {
         res.lines[res.nlines].end = ccount;
         word_begin = ccount + 1;
         line_width += word_width;
@@ -283,7 +287,7 @@ WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
         res.lines[res.nlines].start = word_begin;
   
         // Try to fit it again. If not, start breaking it in pieces
-        if (line_width + word_width < max_width) {
+        if (line_width + word_width - char_width < max_width) {
           res.lines[res.nlines].end = ccount;
           word_begin = ccount + 1;
           line_width += word_width;
@@ -326,8 +330,6 @@ WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
       word_begin = ccount + 1;
       continue;
     }
-    
-    word_width += lv_draw_letter(draw_nopixel, 0, 0, &roboto16, c, n, 0, 0);
   }
 
 
@@ -425,7 +427,6 @@ void next_message() {
     while ((candidate = random(0, n_messages)) == index_shown);
     Serial.print("Chosen index: "); Serial.println(candidate);
     index_shown = candidate;
-    //index_shown = 53; // Too narrow
     
     uint32_t const offset_addr = 4 + index_shown*4;
     f.seek(offset_addr);
