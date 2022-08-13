@@ -17,7 +17,7 @@ mv chat/photos/*.bmp images/;
 
 echo "Converting gifs";
 for file in chat/gifs/*.gif;
-do magick convert "$file[0]" "${file%.*}.bmp" &&
+do magick convert -coalesce "$file[-1]" "${file%.*}.bmp" &&
 magick "${file%.*}.bmp" -alpha OFF -compress none -resize '480x320\>' "${file}_temp" &&
 mv "${file}_temp" "${file%.*}.bmp";
 done;
