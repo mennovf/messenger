@@ -55,6 +55,38 @@ uint32_t index_shown = 0;
 uint16_t s_width;  
 uint16_t s_height;
 
+
+enum class Person {
+  HIM,
+  HER
+};
+
+volatile Person person = Person::HIM;
+volatile uint64_t person_button_changed;
+int person_button_previous_value = HIGH;
+
+
+
+void person_button_interrupt() {
+  uint64_t const now = millis();
+  person_button_changed = now;
+}
+
+Person get_person() {
+  int const button_state = digitalRead(2);
+
+  uint64_t const now = millis();
+  if (now - person_button_changed > 100) {
+    if (person_button_previous_value == HIGH && button_state == LOW) {
+      person = static_cast<Person>(!static_cast<bool>(person));
+    }
+
+    person_button_previous_value = button_state;
+  }
+
+  return person;
+}
+
 uint16_t read16le(File fp) {
     uint16_t const low = fp.read();
     uint16_t const high = fp.read();
@@ -401,7 +433,7 @@ uint64_t fast_hash(uint64_t h) {
 uint32_t true_random() {
   uint64_t h = 0xFFFFFFFFFF;
   for (int i = 0; i < 64; ++i) {
-    h = fast_hash(h ^ analogRead(A0) );
+    h = fast_hash(h ^ analogRead(A1) );
     delay(1);
   }
   return h;
@@ -413,7 +445,8 @@ enum MessageType {
 };
 
 void next_message() {
-    File f = SD.open("/messages", FILE_READ);
+    char const * const mfile = (get_person() == Person::HIM) ? "/messages" : "/messages";
+    File f = SD.open(mfile, FILE_READ);
     if (!f) {
       Serial.println("Unable to open messages file.");
       return;
@@ -497,8 +530,15 @@ void next_message() {
 }
 
 void setup() {
+    // POT
     pinMode(A0, INPUT_PULLUP);
     analogReference(INTERNAL1V1);
+
+    // Person Button
+    pinMode(2, INPUT_PULLUP);
+    person_button_changed = millis();
+    attachInterrupt(digitalPinToInterrupt(2), &person_button_interrupt, CHANGE);
+    
     Serial.begin(9600);
     
     my_lcd.Init_LCD();
@@ -510,14 +550,12 @@ void setup() {
     randomSeed(SEED);
 
     //Init SD_Card
-    /*
     pinMode(53, OUTPUT);
     if (!SD.begin(53)) {
       Serial.println("Unable to begin SD!");
       my_lcd.Fill_Screen(RED);
       while (true);
     }
-    */
 
     next_message();
 }
