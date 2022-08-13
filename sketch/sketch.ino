@@ -445,7 +445,7 @@ enum MessageType {
 };
 
 void next_message() {
-    char const * const mfile = (get_person() == Person::HIM) ? "/messages" : "/messages";
+    char const * const mfile = (person == Person::HIM) ? "/messages" : "/messages";
     File f = SD.open(mfile, FILE_READ);
     if (!f) {
       Serial.println("Unable to open messages file.");
@@ -573,11 +573,16 @@ void loop() {
     if (p > 0.95) {
       change_period_ms = UINT64_MAX;
     }
+
+    static Person last_person = person;
+    Person person = get_person();
     
     uint64_t const now = millis();
-    if (now - last_change_at > change_period_ms) {
+    if (now - last_change_at > change_period_ms || last_person != person) {
       next_message();
       
       last_change_at = now;
     }
+
+    last_person = person;
 }
