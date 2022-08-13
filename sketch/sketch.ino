@@ -27,6 +27,8 @@
 #include <SPI.h>
 #include <limits.h>
 #include <string.h>
+#include <avr/sleep.h>
+#include <avr/interrupt.h>
 #include "src/LCDWIKI_GUI.h" //Core graphics library
 #include "src/LCDWIKI_KBV.h" //Hardware-specific library
 #include "src/lvgl/lvgl.h"
@@ -47,6 +49,9 @@ LCDWIKI_KBV my_lcd(ILI9486,40,38,39,1,41); //model,cs,cd,wr,rd,reset
 
 #define LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
 
+// GLOBALS
+uint32_t index_shown = 0;
+#define COLOR_BG (BLUE)
 uint16_t s_width;  
 uint16_t s_height;
 
@@ -402,17 +407,10 @@ uint32_t true_random() {
   return h;
 }
 
-
-// GLOBALS
-uint32_t index_shown = 0;
-uint64_t change_period_ms = 5*1000;
-
 enum MessageType {
   STRING = 0,
   IMAGE = 1
 };
-
-#define COLOR_BG (BLUE)
 
 void next_message() {
     File f = SD.open("/messages", FILE_READ);
@@ -499,7 +497,8 @@ void next_message() {
 }
 
 void setup() {
-    pinMode(A0, INPUT);
+    pinMode(A0, INPUT_PULLUP);
+    analogReference(INTERNAL1V1);
     Serial.begin(9600);
     
     my_lcd.Init_LCD();
@@ -511,51 +510,36 @@ void setup() {
     randomSeed(SEED);
 
     //Init SD_Card
+    /*
     pinMode(53, OUTPUT);
     if (!SD.begin(53)) {
       Serial.println("Unable to begin SD!");
       my_lcd.Fill_Screen(RED);
       while (true);
     }
+    */
 
     next_message();
-    uint64_t last_change_at = millis();
-    do {
-      uint64_t const now = millis();
-      if (now - last_change_at > change_period_ms) {
-        next_message();
-        last_change_at = now;
-      }
-      
-    } while (true);
+}
+
+float pot() {
+  uint16_t const a = analogRead(A0);
+  return a / 1024.f;
 }
 
 void loop() {
-  /*
-    int i = 0;
-    File bmp_file;
-    for(i = 0;i<FILE_NUMBER;i++)
-    {
-       bmp_file = SD.open(file_name[i]);
-       if(!bmp_file)
-       {
-            my_lcd.Set_Text_Back_colour(BLUE);
-            my_lcd.Set_Text_colour(WHITE);    
-            my_lcd.Set_Text_Size(1);
-            my_lcd.Print_String("didnt find BMPimage!",0,10);
-            while(1);
-        }
-        if(!analysis_bpm_header(bmp_file))
-        {  
-            my_lcd.Set_Text_Back_colour(BLUE);
-            my_lcd.Set_Text_colour(WHITE);    
-            my_lcd.Set_Text_Size(1);
-            my_lcd.Print_String("bad bmp picture!",0,0);
-            return;
-        }
-        draw_bmp_picture(bmp_file);
-        bmp_file.close(); 
-        delay(5000);
-     }
-     */
+    static uint64_t last_change_at = millis();
+
+    float const p = pot();
+    uint64_t change_period_ms = (59*p + 1) * 1000;
+    if (p > 0.95) {
+      change_period_ms = UINT64_MAX;
+    }
+    
+    uint64_t const now = millis();
+    if (now - last_change_at > change_period_ms) {
+      next_message();
+      
+      last_change_at = now;
+    }
 }
