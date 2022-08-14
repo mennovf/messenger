@@ -445,7 +445,7 @@ enum MessageType {
 };
 
 void next_message() {
-    char const * const mfile = (person == Person::HIM) ? "/messages" : "/messages";
+    char const * const mfile = (person == Person::HIM) ? "/him" : "/her";
     File f = SD.open(mfile, FILE_READ);
     if (!f) {
       Serial.println("Unable to open messages file.");

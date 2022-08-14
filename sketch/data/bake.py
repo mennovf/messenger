@@ -27,70 +27,64 @@ for i, img_path in enumerate(IMAGES_PATH.glob('*.bmp')):
 def img_content(s):
     return MTYPE_BMP, img_mapping[s[0]['uri'].split('/')[-1].split('.')[0]]
 
-selection = []
-all_chars = set()
-for mfile in chats.glob('message_*.json'):
-    with mfile.open() as f:
-        text = f.read()
-        text = text.replace('\\u', '\\\\u')
-        o = json.loads(text)
-        messages = o['messages']
-        for m in messages:
-            if m['sender_name'] != 'Menno Vanfrachem':
-                continue
+HIM = 'Menno Vanfrachem'
+HER = 'Margarita Osipova'
 
-            if 'reactions' not in m:
-                continue
-            reactions = m['reactions']
-            for r in reactions:
-                if r['actor'] == 'Margarita Osipova' and utf8bytes(r['reaction']) == HEART:
-                    break
-            else:
-                continue
+for writer, reacter, foutname in ((HIM, HER, "him"), (HER, HIM, "her")):
+    selection = []
+    all_chars = set()
+    for mfile in chats.glob('message_*.json'):
+        with mfile.open() as f:
+            text = f.read()
+            text = text.replace('\\u', '\\\\u')
+            o = json.loads(text)
+            messages = o['messages']
+            for m in messages:
+                if m['sender_name'] != HIM:
+                    continue
 
-            # Determine the type
-            if 'content' in m:
-                mtype = MTYPE_STR
-                content = bytearray(m['content'].encode('utf-8'))
-                replace_sequences = []
-                for i, _ in enumerate(content[:-5]):
-                    if content[i:i+4] == b'\\u00':
-                        replace_sequences.append(content[i:i+6])
-                for rs in replace_sequences:
-                    content = content.replace(rs, bytes.fromhex(rs[4:].decode('utf-8')))
-            elif 'photos' in m:
-                mtype, content = img_content(m['photos'])
-            elif 'videos' in m:
-                mtype, content = img_content(m['videos'])
-            elif 'gifs' in m:
-                mtype, content = img_content(m['gifs'])
-            else:
-                continue
+                if 'reactions' not in m:
+                    continue
+                reactions = m['reactions']
+                for r in reactions:
+                    if r['actor'] == HER and utf8bytes(r['reaction']) == HEART:
+                        break
+                else:
+                    continue
 
-            selection.append(mtype + content + b'\0')
-            all_chars |= {ord(c) for c in content.decode('utf-8')}
+                # Determine the type
+                if 'content' in m:
+                    mtype = MTYPE_STR
+                    content = bytearray(m['content'].encode('utf-8'))
+                    replace_sequences = []
+                    for i, _ in enumerate(content[:-5]):
+                        if content[i:i+4] == b'\\u00':
+                            replace_sequences.append(content[i:i+6])
+                    for rs in replace_sequences:
+                        content = content.replace(rs, bytes.fromhex(rs[4:].decode('utf-8')))
+                elif 'photos' in m:
+                    mtype, content = img_content(m['photos'])
+                elif 'videos' in m:
+                    mtype, content = img_content(m['videos'])
+                elif 'gifs' in m:
+                    mtype, content = img_content(m['gifs'])
+                else:
+                    continue
 
-indices = [0]
-for s in selection:
-    indices.append(len(s) + indices[-1])
-indices = indices[:-1] # Points into the void
+                selection.append(mtype + content + b'\0')
+                all_chars |= {ord(c) for c in content.decode('utf-8')}
 
-if False:
-    with open('loved.h', 'w') as f:
-        f.write('#include <stdint.h>\n\n')
-        f.write('uint8_t const LOVED[] PROGMEM = {')
-        f.write(','.join(hex(c) for s in selection for c in s))
-        f.write('};\n')
-        f.write(f'uint32_t const LOVED_INDICES[{len(indices)}] PROGMEM = {{')
-        f.write(','.join(str(i) for i in indices))
-        f.write('};\n')
-
-with (BAKE_PATH / 'messages').open('wb') as f:
-    f.write(struct.pack('>L', len(indices)))
-    for index in indices:
-        f.write(struct.pack('>L', index))
+    indices = [0]
     for s in selection:
-        f.write(s)
+        indices.append(len(s) + indices[-1])
+    indices = indices[:-1] # Points into the void
+
+    with (BAKE_PATH / foutname).open('wb') as f:
+        f.write(struct.pack('>L', len(indices)))
+        for index in indices:
+            f.write(struct.pack('>L', index))
+        for s in selection:
+            f.write(s)
 
 all_chars |= ADDITIONAL_CHARS
 all_chars = {c for c in all_chars if c >= 32}
