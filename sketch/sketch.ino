@@ -25,6 +25,7 @@
 
 #include <SD.h>
 #include <SPI.h>
+#include <stdint.h>
 #include <limits.h>
 #include <string.h>
 #include <avr/sleep.h>
@@ -32,7 +33,6 @@
 #include "src/LCDWIKI_GUI.h" //Core graphics library
 #include "src/LCDWIKI_KBV.h" //Hardware-specific library
 #include "src/lvgl/lvgl.h"
-#include "src/loved.h"
 
 //the definiens of 16bit mode as follow:
 //if the IC model is known or the modules is unreadable,you can use this constructed function
@@ -56,6 +56,7 @@ uint32_t index_shown = 0;
 #define COLOUR_DIALOG (my_lcd.Color_To_565(0x00, 0x7f, 0xf9))
 uint16_t s_width;  
 uint16_t s_height;
+LV_FONT_DECLARE(roboto16)
 
 
 enum class Person {
@@ -114,14 +115,14 @@ uint32_t read32(File fp) {
 
 struct BmpHeader {
   uint32_t width;
-  uint32_t height;
+  int32_t height;
   uint32_t offset;
   uint8_t bpp;
   bool valid;
 };
  
-BmpHeader analysis_bpm_header(File fp) {
-    BmpHeader header;
+struct BmpHeader analysis_bpm_header(File fp) {
+    struct BmpHeader header;
     memset(&header, 0, sizeof(header));
     
     if(read16le(fp) != 0x4D42) {
@@ -142,7 +143,8 @@ BmpHeader analysis_bpm_header(File fp) {
     }
     //get width and heigh information
     header.width  = read32le(fp);
-    header.height = read32le(fp);
+    uint32_t const uheight = read32le(fp);
+    memcpy(&header.height, &uheight, sizeof(uheight));
     
     read16le(fp);
     header.bpp = read16le(fp);
@@ -169,7 +171,7 @@ void draw_bmp_picture(BmpHeader header, File fp) {
   uint16_t const LEFT_END = s_width/2 + (header.width / 2) + 2*(header.width & 0x1);
   uint16_t const LEFT_BEGIN = s_width/2 - header.width / 2;
   uint16_t left = LEFT_BEGIN;
-  uint16_t top  = s_height/2 + header.height / 2;
+  uint16_t top  = (s_height + header.height - 1) / 2;
 
   uint32_t pixels_left = header.width * header.height;
   uint8_t const Bpp = header.bpp / 8;
@@ -254,8 +256,6 @@ void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uin
   }
 }
 
-LV_FONT_DECLARE(roboto16);
-
 void draw_pixel(uint16_t x, uint16_t y, uint16_t c) {
   my_lcd.Draw_Pixe(x, y, c);
 }
@@ -280,8 +280,8 @@ struct WrappedDesc {
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
-  WrappedDesc res;
+struct WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
+  struct WrappedDesc res;
   memset(&res, 0, sizeof(res));
   
   uint16_t line_width = 0;
