@@ -51,7 +51,9 @@ LCDWIKI_KBV my_lcd(ILI9486,40,38,39,1,41); //model,cs,cd,wr,rd,reset
 
 // GLOBALS
 uint32_t index_shown = 0;
-#define COLOR_BG (BLUE)
+#define COLOUR_BG (WHITE)
+#define COLOUR_TEXT (WHITE)
+#define COLOUR_DIALOG (my_lcd.Color_To_565(0x00, 0x7f, 0xf9))
 uint16_t s_width;  
 uint16_t s_height;
 
@@ -484,10 +486,10 @@ void next_message() {
       uint16_t bw = wrapping.line_width + 2*R, bh = text_height + 2*R;
   
       // Clear   
-      my_lcd.Fill_Screen(COLOR_BG);
+      my_lcd.Fill_Screen(COLOUR_BG);
   
       // Draw box
-      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, R, RED);
+      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, R, COLOUR_DIALOG);
   
       // Draw the text
       uint16_t top = cy - text_height/2;
@@ -495,12 +497,12 @@ void next_message() {
       for (int i = 0; i < wrapping.nlines; ++i) {
         uint32_t const prev = buf[wrapping.lines[i].end];
         buf[wrapping.lines[i].end] = '\0';
-        draw_string(left, top, &buf[wrapping.lines[i].start], YELLOW, RED);
+        draw_string(left, top, &buf[wrapping.lines[i].start], COLOUR_TEXT, COLOUR_DIALOG);
         buf[wrapping.lines[i].end] = prev;
         top += roboto16.line_height + SPACING;
       }
     } else {  
-      my_lcd.Fill_Screen(COLOR_BG);
+      my_lcd.Fill_Screen(COLOUR_BG);
 
       //8.3 filenames
       char fname[21] = "/images/";
