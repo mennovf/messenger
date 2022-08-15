@@ -30,9 +30,9 @@ def img_content(s):
 HIM = 'Menno Vanfrachem'
 HER = 'Margarita Osipova'
 
+all_chars = set()
 for writer, reacter, foutname in ((HIM, HER, "him"), (HER, HIM, "her")):
     selection = []
-    all_chars = set()
     for mfile in chats.glob('message_*.json'):
         with mfile.open() as f:
             text = f.read()
@@ -40,14 +40,14 @@ for writer, reacter, foutname in ((HIM, HER, "him"), (HER, HIM, "her")):
             o = json.loads(text)
             messages = o['messages']
             for m in messages:
-                if m['sender_name'] != HIM:
+                if m['sender_name'] != writer:
                     continue
 
                 if 'reactions' not in m:
                     continue
                 reactions = m['reactions']
                 for r in reactions:
-                    if r['actor'] == HER and utf8bytes(r['reaction']) == HEART:
+                    if r['actor'] == reacter and utf8bytes(r['reaction']) == HEART:
                         break
                 else:
                     continue

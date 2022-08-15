@@ -54,6 +54,7 @@ uint32_t index_shown = 0;
 #define COLOUR_BG (WHITE)
 #define COLOUR_TEXT (WHITE)
 #define COLOUR_DIALOG (my_lcd.Color_To_565(0x00, 0x7f, 0xf9))
+#define COLOUR_NAME (BLACK)
 uint16_t s_width;  
 uint16_t s_height;
 LV_FONT_DECLARE(roboto16)
@@ -63,6 +64,11 @@ enum class Person {
   HIM,
   HER
 };
+
+
+static uint32_t const NAME_HIM[] = {0x43c, 0x430, 0x43d, 0x435, 0x447, 0x43a, 0x430, '\0'};
+static uint32_t const NAME_HER[] = {0x440, 0x438, 0x442, 0x43e, 0x447, 0x43a, 0x430, '\0'};
+static uint32_t const * const NAMES[] = {NAME_HIM, NAME_HER};
 
 volatile Person person = Person::HIM;
 volatile uint64_t person_button_changed;
@@ -487,9 +493,19 @@ void next_message() {
   
       // Clear   
       my_lcd.Fill_Screen(COLOUR_BG);
+
+      // Calculate box dimensions
+      uint16_t bleft = cx - bw/2;
+      uint16_t btop  = cy - bh / 2;
+      
+      // Draw Writer name
+      int16_t wtop = btop - roboto16.line_height;
+      if (wtop >= 0) {
+        draw_string(bleft + 10, wtop, NAMES[static_cast<int>(person)], COLOUR_NAME, COLOUR_BG);
+      }
   
       // Draw box
-      draw_rounded_rect(&my_lcd, cx - bw/2, cy - bh / 2, bw, bh, R, COLOUR_DIALOG);
+      draw_rounded_rect(&my_lcd, bleft, btop, bw, bh, R, COLOUR_DIALOG);
   
       // Draw the text
       uint16_t top = cy - text_height/2;
