@@ -182,29 +182,29 @@ void draw_pixel(uint16_t x, uint16_t y, uint16_t c) {
 void draw_nopixel(uint16_t, uint16_t, uint16_t) {
 }
 
-void draw_rgb_pixel(uint16_t x, uint16_t y, uint32_t c) {
-  my_lcd.Draw_Pixe(x, y, my_lcd.Color_To_565( (c >> 8) & 0xFF, (c >> 16) & 0xFF, (c >> 24) & 0xFF ));
+void draw_rgb_line(uint16_t x, uint16_t y, uint16_t w, uint32_t const * const colors) {
+  my_lcd.Set_Addr_Window(x, y, x+w, y);
+  my_lcd.cs_active();
+  my_lcd.Write_Cmd8(my_lcd.CC);
+  for (int i = 0; i < w; ++i) {
+    uint32_t const c = colors[i];
+    my_lcd.Write_Data(my_lcd.Color_To_565( (c >> 8) & 0xFF, (c >> 16) & 0xFF, (c >> 24) & 0xFF ));
+  }
+  my_lcd.cs_idle();
 }
 
-typedef void (*DrawBMPPixel)(uint16_t, uint16_t, uint32_t);
+typedef void (*DrawBMPLine)(uint16_t, uint16_t, uint16_t, uint32_t const *);
 
-void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top = -1, DrawBMPPixel draw = &draw_rgb_pixel) {
+void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top = -1, DrawBMPLine draw_line = &draw_rgb_line) {
   left = (left >= 0) ? left : (s_width/2 - header.width / 2);
   top  = (top >= 0) ? (top + header.height) : (s_height + header.height - 1) / 2;
-  uint16_t const LEFT_END = left + header.width;
-  uint16_t const LEFT_BEGIN = left;
-
-  Serial.println(header.bpp);
-  Serial.println(header.width);
-  Serial.println(LEFT_BEGIN);
-  Serial.println(LEFT_END);
 
   uint32_t pixels_left = header.width * header.height;
   uint8_t const Bpp = header.bpp / 8;
 
   int const pixels_per_line = MIN(BMP_PIXEL_BUF_AMOUNT, header.width);
   int const bytes_per_line = Bpp*pixels_per_line;
-  int const bytes_per_scanline = bytes_per_line + (4 - (bytes_per_line & (4-1)));
+  int const bytes_per_scanline = (bytes_per_line + 3) & ~0x3;
 
   int16_t line_counter = 0;
   fp.seek(header.offset);
@@ -216,15 +216,9 @@ void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top 
       if (Bpp == 4) colors[k] = ((uint32_t)data[m] << 24) | ((uint32_t)data[m+1] << 16) | ((uint32_t)data[m+2] << 8) | ((uint32_t)data[m+3]);
       m += Bpp;
     }
-    for (size_t l = 0; l < pixels_per_line && pixels_left; l++) {
-      draw(left, top, colors[l]);
-      pixels_left -= 1;
-      left += 1;
-      if (left == LEFT_END) {
-        left = LEFT_BEGIN;
-        top -= 1;
-      }
-    }
+    draw_line(left, top, pixels_per_line, colors);
+    pixels_left -= pixels_per_line;
+    top -= 1;
   }  
 }
 
@@ -481,19 +475,28 @@ uint8_t b565(uint16_t c) {
 
 static uint16_t heartxstart;
 static uint16_t heartystart;
-void draw_heart_pixel(uint16_t x, uint16_t y, uint32_t RGBA) {
-  uint8_t Ro = (RGBA >> 8) & 0xFF;
-  uint8_t Go = (RGBA >> 16) & 0xFF;
-  uint8_t Bo = (RGBA >> 24) & 0xFF;
-  float const a = (RGBA & 0xFF) / 255.f;
+void draw_heart_line(uint16_t x, uint16_t y, uint16_t w, uint32_t const * const RGBAs) {
   int16_t const d = (int16_t)y - (int16_t)heartystart;
   uint16_t const bg = (d < 8) ? COLOUR_DIALOG : COLOUR_BG;
-  uint8_t R = Ro * a + r565(bg) * (1.f - a);
-  uint8_t G = Go * a + g565(bg) * (1.f - a);
-  uint8_t B = Bo * a + b565(bg) * (1.f - a);
 
-  uint16_t const color = my_lcd.Color_To_565(R, G, B);
-  my_lcd.Draw_Pixe(x, y, color);
+  my_lcd.Set_Addr_Window(x, y, x+w, y);
+  my_lcd.cs_active();
+  my_lcd.Write_Cmd8(my_lcd.CC);
+  
+  for (int i = 0; i < w; ++i) {
+    uint32_t const RGBA = RGBAs[i];
+    uint8_t Ro = (RGBA >> 8) & 0xFF;
+    uint8_t Go = (RGBA >> 16) & 0xFF;
+    uint8_t Bo = (RGBA >> 24) & 0xFF;
+    float const a = (RGBA & 0xFF) / 255.f;
+    uint8_t R = Ro * a + r565(bg) * (1.f - a);
+    uint8_t G = Go * a + g565(bg) * (1.f - a);
+    uint8_t B = Bo * a + b565(bg) * (1.f - a);
+  
+    uint16_t const color = my_lcd.Color_To_565(R, G, B);
+    my_lcd.Write_Data(color);
+  }
+  my_lcd.cs_idle();
 }
 
 void next_message() {
@@ -510,8 +513,7 @@ void next_message() {
     while ((candidate = random(0, n_messages)) == index_shown);
     Serial.print("Index shown: "); Serial.println(candidate);
     index_shown = candidate;
-    //index_shown = 368;
-    index_shown = 10;
+    //index_shown = 10;
     
     uint32_t const offset_addr = 4 + index_shown*4;
     f.seek(offset_addr);
@@ -575,7 +577,7 @@ void next_message() {
       BmpHeader const heartheader  = analyse_bmp_header(heart);
       heartxstart = bleft + bw - R - heartheader.width;
       heartystart = btop + bh - 8;
-      draw_bmp_picture(heartheader, heart, heartxstart, heartystart, draw_heart_pixel);
+      draw_bmp_picture(heartheader, heart, heartxstart, heartystart, draw_heart_line);
       heart.close();
     } else {  
       my_lcd.Fill_Screen(COLOUR_BG);

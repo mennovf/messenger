@@ -281,6 +281,11 @@ void LCDWIKI_KBV::Write_Cmd(uint16_t cmd)
 	writeCmd16(cmd);
 }
 
+void LCDWIKI_KBV::Write_Cmd8(uint8_t cmd)
+{
+	writeCmd8(cmd);
+}
+
 void LCDWIKI_KBV::Write_Data(uint16_t data)
 {
 	writeData16(data);
@@ -1266,4 +1271,12 @@ void LCDWIKI_KBV::start(uint16_t ID)
 	}
 	Set_Rotation(rotation); 
 	Invert_Display(false);
+}
+
+void LCDWIKI_KBV::cs_active() {
+	CS_ACTIVE;
+}
+
+void LCDWIKI_KBV::cs_idle() {
+	CS_IDLE;
 }

@@ -88,9 +88,13 @@ class LCDWIKI_KBV:public LCDWIKI_GUI
   	int16_t Get_Width(void) const;
 	void Set_LR(void);
 
+	void Write_Cmd8(uint8_t cmd);
+	void cs_active();
+	void cs_idle();
+
 	protected:
     uint16_t WIDTH,HEIGHT,width, height, rotation,lcd_driver,lcd_model;
-	private:
+	public:
 	uint16_t XC,YC,CC,RC,SC1,SC2,MD,VL,R24BIT;
 
 	 #ifndef USE_ADAFRUIT_SHIELD_PIN
