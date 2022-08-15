@@ -77,6 +77,40 @@ volatile uint64_t person_button_changed;
 int person_button_previous_value = HIGH;
 
 
+uint8_t r565(uint16_t c) {
+  return (c >> 11) * 8;
+}
+uint8_t g565(uint16_t c) {
+  return ((c >> 5) & 0x3F) * 4;
+}
+uint8_t b565(uint16_t c) {
+  return (c & 0x1F) * 8;
+}
+
+uint16_t blend(uint16_t l, uint16_t r, float a) {
+  if (a <= 0) return r;
+  if (a >= 1) return l;
+  float const g = 2.2;
+  float Rl = r565(l), Rr = r565(r);
+  float Gl = g565(l), Gr = g565(r);
+  float Bl = b565(l), Br = b565(r);
+  Rl = pow(Rl / 255.f, g);
+  Rr = pow(Rr / 255.f, g);
+  Gr = pow(Gr / 255.f, g);
+  Gl = pow(Gl / 255.f, g);
+  Br = pow(Br / 255.f, g);
+  Bl = pow(Bl / 255.f, g);
+
+  float rr = Rl * a + Rr * (1.f - a);
+  float gg = Gl * a + Gr * (1.f - a);
+  float b = Bl * a + Br * (1.f - a);
+
+  uint32_t const R = pow(rr, 1.f / g) * 255;
+  uint32_t const G = pow(gg, 1.f / g) * 255;
+  uint32_t const B = pow(b, 1.f / g) * 255;
+
+  return my_lcd.Color_To_565(R, G, B);
+}
 
 void person_button_interrupt() {
   uint64_t const now = millis();
@@ -227,7 +261,7 @@ void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top 
 void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uint16_t width, uint16_t height, uint16_t R, uint16_t color) {
   lcd->Fill_Rect(left + R, top, width - 2*R, height, color);
   lcd->Fill_Rect(left, top + R, R, height - 2*R, color);
-  lcd->Fill_Rect(left + width - R, top + R, R, height - 2*R, color);
+  lcd->Fill_Rect(left + width - R, top + R, R + 1, height - 2*R, color);
 
   // Top left
   for (uint16_t x = left; x < left + R; ++x) {
@@ -236,21 +270,31 @@ void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uin
       float fy = y;
       float dx = fx - (left + R);
       float dy = fy - (top + R);
-      if (dx*dx + dy*dy < R*R) {
+      float D2 = dx*dx + dy*dy;
+      if (D2 < R*R) {
         lcd->Draw_Pixe(x, y, color);
+      } else {
+        float d = sqrt(D2) - R;
+        float a = MAX(0, 1.f - d);
+        lcd->Draw_Pixe(x, y, blend(color, COLOUR_BG, a));
       }
     }
   }
 
   // Top Right
-  for (uint16_t x = left + width - R; x < left + width + R; ++x) {
+  for (uint16_t x = left + width - R; x < left + width + 1; ++x) {
     for (uint16_t y = top; y < top + R; ++y) {
       float fx = x;
       float fy = y;
       float dx = fx - (left + width - R);
       float dy = fy - (top + R);
-      if (dx*dx + dy*dy < R*R) {
+      float D2 = dx*dx + dy*dy;
+      if (D2 < R*R) {
         lcd->Draw_Pixe(x, y, color);
+      } else {
+        float d = sqrt(D2) - R;
+        float a = MAX(0, 1.f - d);
+        lcd->Draw_Pixe(x, y, blend(color, COLOUR_BG, a));
       }
     }
   }
@@ -262,21 +306,31 @@ void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uin
       float fy = y;
       float dx = fx - (left + R);
       float dy = fy - (top + height - R);
-      if (dx*dx + dy*dy < R*R) {
+      float D2 = dx*dx + dy*dy;
+      if (D2 < R*R) {
         lcd->Draw_Pixe(x, y, color);
+      } else {
+        float d = sqrt(D2) - R;
+        float a = MAX(0, 1.f - d);
+        lcd->Draw_Pixe(x, y, blend(color, COLOUR_BG, a));
       }
     }
   }
 
   // Bottom Right
-  for (uint16_t x = left + width - R; x < left + width + R; ++x) {
+  for (uint16_t x = left + width - R; x < left + width + 1; ++x) {
     for (uint16_t y = top + height - R; y < top + height; ++y) {
       float fx = x;
       float fy = y;
       float dx = fx - (left + width - R);
       float dy = fy - (top + height - R);
-      if (dx*dx + dy*dy < R*R) {
+      float D2 = dx*dx + dy*dy;
+      if (D2 < R*R) {
         lcd->Draw_Pixe(x, y, color);
+      } else {
+        float d = sqrt(D2) - R;
+        float a = MAX(0, 1.f - d);
+        lcd->Draw_Pixe(x, y, blend(color, COLOUR_BG, a));
       }
     }
   }
@@ -463,15 +517,6 @@ enum MessageType {
   IMAGE = 1
 };
 
-uint8_t r565(uint16_t c) {
-  return (c >> 11) * 8;
-}
-uint8_t g565(uint16_t c) {
-  return ((c >> 5) & 0x3F) * 4;
-}
-uint8_t b565(uint16_t c) {
-  return (c & 0x1F) * 8;
-}
 
 static uint16_t heartxstart;
 static uint16_t heartystart;
