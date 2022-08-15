@@ -127,7 +127,7 @@ struct BmpHeader {
   bool valid;
 };
  
-struct BmpHeader analysis_bpm_header(File fp) {
+struct BmpHeader analyse_bmp_header(File fp) {
     struct BmpHeader header;
     memset(&header, 0, sizeof(header));
     
@@ -160,8 +160,8 @@ struct BmpHeader analysis_bpm_header(File fp) {
     }
     // Compression type should be None
     uint32_t const compression = read32le(fp);
-    if(compression != 0) {
-      Serial.print(fp.name()); Serial.print(" use compression="); Serial.println(compression);
+    if((header.bpp == 16 && compression != 0) || (header.bpp == 32 && compression != 3)) {
+      Serial.print(fp.name()); Serial.print(" uses compression="); Serial.println(compression);
       return header; 
     }
     header.valid = true;
@@ -171,13 +171,26 @@ struct BmpHeader analysis_bpm_header(File fp) {
 #define BMP_PIXEL_BUF_AMOUNT (32)
 
 static uint8_t  data[BMP_PIXEL_BUF_AMOUNT*4] = {0};
-static uint16_t colors[BMP_PIXEL_BUF_AMOUNT];
+static uint32_t colors[BMP_PIXEL_BUF_AMOUNT];
 
-void draw_bmp_picture(BmpHeader header, File fp) {
-  uint16_t const LEFT_END = s_width/2 + (header.width / 2) + 2*(header.width & 0x1);
-  uint16_t const LEFT_BEGIN = s_width/2 - header.width / 2;
-  uint16_t left = LEFT_BEGIN;
-  uint16_t top  = (s_height + header.height - 1) / 2;
+void draw_pixel(uint16_t x, uint16_t y, uint16_t c) {
+  my_lcd.Draw_Pixe(x, y, c);
+}
+
+void draw_nopixel(uint16_t, uint16_t, uint16_t) {
+}
+
+void draw_rgb_pixel(uint16_t x, uint16_t y, uint32_t c) {
+  my_lcd.Draw_Pixe(x, y, my_lcd.Color_To_565( c >> 24, (c >> 16) & 0xFF, (c >> 8) & 0xFF ));
+}
+
+typedef void (*DrawBMPPixel)(uint16_t, uint16_t, uint32_t);
+
+void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top = -1, DrawBMPPixel draw = &draw_rgb_pixel) {
+  left = (left >= 0) ? left : (s_width/2 - header.width / 2);
+  top  = (top >= 0) ? (top + header.height) : (s_height + header.height - 1) / 2;
+  uint16_t const LEFT_END = left + header.width + (header.width & 0x1);
+  uint16_t const LEFT_BEGIN = left;
 
   uint32_t pixels_left = header.width * header.height;
   uint8_t const Bpp = header.bpp / 8;
@@ -187,11 +200,12 @@ void draw_bmp_picture(BmpHeader header, File fp) {
     size_t m = 0;
     fp.read(data, BMP_PIXEL_BUF_AMOUNT*Bpp);
     for (size_t k = 0; k < BMP_PIXEL_BUF_AMOUNT; k++) {
-      colors[k] = my_lcd.Color_To_565(data[m+2], data[m+1], data[m+0]);
+      if (Bpp == 3) colors[k] = ((uint32_t)data[m] << 24) | ((uint32_t)data[m+1] << 16) | ((uint32_t)data[m+2] << 8);
+      if (Bpp == 4) colors[k] = ((uint32_t)data[m] << 24) | ((uint32_t)data[m+1] << 16) | ((uint32_t)data[m+2] << 8) | ((uint32_t)data[m+3]);
       m += Bpp;
     }
     for (size_t l = 0; l < BMP_PIXEL_BUF_AMOUNT && pixels_left; l++) {
-      my_lcd.Draw_Pixe(left, top, colors[l]);
+      draw(left, top, colors[l]);
       pixels_left -= 1;
       left += 1;
       if (left == LEFT_END) {
@@ -260,13 +274,6 @@ void draw_rounded_rect(LCDWIKI_KBV * const lcd, uint16_t left, uint16_t top, uin
       }
     }
   }
-}
-
-void draw_pixel(uint16_t x, uint16_t y, uint16_t c) {
-  my_lcd.Draw_Pixe(x, y, c);
-}
-
-void draw_nopixel(uint16_t, uint16_t, uint16_t) {
 }
 
 bool is_word_break(uint32_t c) {
@@ -441,7 +448,7 @@ uint64_t fast_hash(uint64_t h) {
 uint32_t true_random() {
   uint64_t h = 0xFFFFFFFFFF;
   for (int i = 0; i < 64; ++i) {
-    h = fast_hash(h ^ analogRead(A1) );
+    h = fast_hash(h ^ analogRead(A9) );
     delay(1);
   }
   return h;
@@ -451,6 +458,33 @@ enum MessageType {
   STRING = 0,
   IMAGE = 1
 };
+
+uint8_t r565(uint16_t c) {
+  return (c >> 11) * 8;
+}
+uint8_t g565(uint16_t c) {
+  return ((c >> 5) & 0x3F) * 4;
+}
+uint8_t b565(uint16_t c) {
+  return (c & 0x1F) * 8;
+}
+
+static uint16_t heartxstart;
+static uint16_t heartystart;
+void draw_heart_pixel(uint16_t x, uint16_t y, uint32_t RGBA) {
+  uint8_t Ro = (RGBA >> 8) & 0xFF;
+  uint8_t Go = (RGBA >> 16) & 0xFF;
+  uint8_t Bo = (RGBA >> 24) & 0xFF;
+  float const a = (RGBA & 0xFF) / 255.f;
+  int16_t const d = (int16_t)y - (int16_t)heartystart;
+  uint16_t const bg = (d < 8) ? COLOUR_DIALOG : COLOUR_BG;
+  uint8_t R = Ro * a + r565(bg) * (1.f - a);
+  uint8_t G = Go * a + g565(bg) * (1.f - a);
+  uint8_t B = Bo * a + b565(bg) * (1.f - a);
+
+  uint16_t const color = my_lcd.Color_To_565(R, G, B);
+  my_lcd.Draw_Pixe(x, y, color);
+}
 
 void next_message() {
     char const * const mfile = (person == Person::HIM) ? "/him" : "/her";
@@ -464,8 +498,9 @@ void next_message() {
    
     uint32_t candidate;
     while ((candidate = random(0, n_messages)) == index_shown);
-    Serial.print("Chosen index: "); Serial.println(candidate);
+    Serial.print("Index shown: "); Serial.println(candidate);
     index_shown = candidate;
+    //index_shown = 368;
     
     uint32_t const offset_addr = 4 + index_shown*4;
     f.seek(offset_addr);
@@ -517,6 +552,20 @@ void next_message() {
         buf[wrapping.lines[i].end] = prev;
         top += roboto16.line_height + SPACING;
       }
+
+      // Draw the heart
+      File heart = SD.open("/images/heart.bmp");
+      if (!heart) {
+        Serial.println("Could not read heart.bmp file.");
+        heart.close();
+        return;
+      }
+
+      BmpHeader const heartheader  = analyse_bmp_header(heart);
+      heartxstart = bleft + bw - R - heartheader.width;
+      heartystart = btop + bh - 8;
+      draw_bmp_picture(heartheader, heart, heartxstart, heartystart, draw_heart_pixel);
+      heart.close();
     } else {  
       my_lcd.Fill_Screen(COLOUR_BG);
 
@@ -533,7 +582,7 @@ void next_message() {
         return;
       }
 
-      BmpHeader const header = analysis_bpm_header(imgf);
+      BmpHeader const header = analyse_bmp_header(imgf);
       if (!header.valid) {
         Serial.print("Not a valid bmp ("); Serial.print(index_shown); Serial.print("): "); Serial.println(fname);
         imgf.close();

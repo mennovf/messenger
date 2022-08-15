@@ -31,5 +31,7 @@ mv "${file}_temp" "${file%.*}.bmp";
 done;
 mv chat/videos/*.bmp images/
 
+cp heart.bmp images/
+
 echo "Finished!";
 
