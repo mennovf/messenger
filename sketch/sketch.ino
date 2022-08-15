@@ -48,6 +48,8 @@ LCDWIKI_KBV my_lcd(ILI9486,40,38,39,1,41); //model,cs,cd,wr,rd,reset
 #define WHITE   0xFFFF
 
 #define LENGTH(arr) (sizeof(arr) / sizeof(arr[0]))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 // GLOBALS
 uint32_t index_shown = 0;
@@ -168,7 +170,7 @@ struct BmpHeader analyse_bmp_header(File fp) {
     return header;
 }
 
-#define BMP_PIXEL_BUF_AMOUNT (32)
+#define BMP_PIXEL_BUF_AMOUNT (480)
 
 static uint8_t  data[BMP_PIXEL_BUF_AMOUNT*4] = {0};
 static uint32_t colors[BMP_PIXEL_BUF_AMOUNT];
@@ -181,7 +183,7 @@ void draw_nopixel(uint16_t, uint16_t, uint16_t) {
 }
 
 void draw_rgb_pixel(uint16_t x, uint16_t y, uint32_t c) {
-  my_lcd.Draw_Pixe(x, y, my_lcd.Color_To_565( c >> 24, (c >> 16) & 0xFF, (c >> 8) & 0xFF ));
+  my_lcd.Draw_Pixe(x, y, my_lcd.Color_To_565( (c >> 8) & 0xFF, (c >> 16) & 0xFF, (c >> 24) & 0xFF ));
 }
 
 typedef void (*DrawBMPPixel)(uint16_t, uint16_t, uint32_t);
@@ -189,22 +191,32 @@ typedef void (*DrawBMPPixel)(uint16_t, uint16_t, uint32_t);
 void draw_bmp_picture(BmpHeader header, File fp, int16_t left = -1, int16_t top = -1, DrawBMPPixel draw = &draw_rgb_pixel) {
   left = (left >= 0) ? left : (s_width/2 - header.width / 2);
   top  = (top >= 0) ? (top + header.height) : (s_height + header.height - 1) / 2;
-  uint16_t const LEFT_END = left + header.width + (header.width & 0x1);
+  uint16_t const LEFT_END = left + header.width;
   uint16_t const LEFT_BEGIN = left;
+
+  Serial.println(header.bpp);
+  Serial.println(header.width);
+  Serial.println(LEFT_BEGIN);
+  Serial.println(LEFT_END);
 
   uint32_t pixels_left = header.width * header.height;
   uint8_t const Bpp = header.bpp / 8;
-  
+
+  int const pixels_per_line = MIN(BMP_PIXEL_BUF_AMOUNT, header.width);
+  int const bytes_per_line = Bpp*pixels_per_line;
+  int const bytes_per_scanline = bytes_per_line + (4 - (bytes_per_line & (4-1)));
+
+  int16_t line_counter = 0;
   fp.seek(header.offset);
   while (pixels_left > 0) {
     size_t m = 0;
-    fp.read(data, BMP_PIXEL_BUF_AMOUNT*Bpp);
-    for (size_t k = 0; k < BMP_PIXEL_BUF_AMOUNT; k++) {
+    fp.read(data, bytes_per_scanline);
+    for (size_t k = 0; k < pixels_per_line; k++) {
       if (Bpp == 3) colors[k] = ((uint32_t)data[m] << 24) | ((uint32_t)data[m+1] << 16) | ((uint32_t)data[m+2] << 8);
       if (Bpp == 4) colors[k] = ((uint32_t)data[m] << 24) | ((uint32_t)data[m+1] << 16) | ((uint32_t)data[m+2] << 8) | ((uint32_t)data[m+3]);
       m += Bpp;
     }
-    for (size_t l = 0; l < BMP_PIXEL_BUF_AMOUNT && pixels_left; l++) {
+    for (size_t l = 0; l < pixels_per_line && pixels_left; l++) {
       draw(left, top, colors[l]);
       pixels_left -= 1;
       left += 1;
@@ -290,8 +302,6 @@ struct WrappedDesc {
   uint16_t line_width;
   Line lines[20];
 };
-
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 struct WrappedDesc text_wrapping(uint32_t const * text, uint16_t max_width) {
   struct WrappedDesc res;
@@ -501,6 +511,7 @@ void next_message() {
     Serial.print("Index shown: "); Serial.println(candidate);
     index_shown = candidate;
     //index_shown = 368;
+    index_shown = 10;
     
     uint32_t const offset_addr = 4 + index_shown*4;
     f.seek(offset_addr);
