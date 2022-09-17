@@ -506,7 +506,9 @@ uint64_t fast_hash(uint64_t h) {
 uint32_t true_random() {
   uint64_t h = 0xFFFFFFFFFF;
   for (int i = 0; i < 64; ++i) {
-    h = fast_hash(h ^ analogRead(A9) );
+    uint16_t const v = analogRead(A9);
+    Serial.println(v);
+    h = fast_hash(h ^ v);
     delay(1);
   }
   return h;
@@ -655,6 +657,10 @@ void next_message() {
 }
 
 void setup() {
+    pinMode(A9, INPUT);
+    uint32_t const SEED = true_random();
+    randomSeed(SEED);
+    
     // POT
     pinMode(A0, INPUT_PULLUP);
     analogReference(INTERNAL1V1);
@@ -670,9 +676,6 @@ void setup() {
     my_lcd.Set_Rotation(3);
     s_width = my_lcd.Get_Display_Width();
     s_height = my_lcd.Get_Display_Height();
-
-    uint32_t const SEED = true_random();
-    randomSeed(SEED);
 
     //Init SD_Card
     pinMode(53, OUTPUT);
@@ -698,6 +701,7 @@ void loop() {
     if (p > 0.95) {
       change_period_ms = UINT64_MAX;
     }
+
 
     static Person last_person = person;
     Person person = get_person();
