@@ -507,7 +507,6 @@ uint32_t true_random() {
   uint64_t h = 0xFFFFFFFFFF;
   for (int i = 0; i < 64; ++i) {
     uint16_t const v = analogRead(A9);
-    Serial.println(v);
     h = fast_hash(h ^ v);
     delay(1);
   }
@@ -677,7 +676,7 @@ void setup() {
     s_width = my_lcd.Get_Display_Width();
     s_height = my_lcd.Get_Display_Height();
 
-    //Init SD_Card
+    //Init SD_Card 
     pinMode(53, OUTPUT);
     if (!SD.begin(53)) {
       Serial.println("Unable to begin SD!");
