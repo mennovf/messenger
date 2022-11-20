@@ -19,6 +19,13 @@ There's a power button to connect the + line of the battery to the arduino's 5V 
 The font required some work to get working. For better resemblance to the Messenger look and visual appearance, a variable-width font was required. This requires a lot of work to use the additional pregenerated information for the kerning.
 Luckily I found the lv_font_convert tool of the [lvgl](https://github.com/lvgl/lvgl) project. This tool creates C structures with for a predetermined size of the font. The code to work with these structures has been extracted from lvgl itself. Only the necessary font files were copied and modified for this use.
 
+#### PROGMEM
+The fonts take up a lot of space. Too much for the limited RAM of the arduino. The Arduino Mega does have enough memory, but it is part of the program memory page of its harvard architecture processor.
+The default lvgl font code assumes all of the font data is accessible in RAM, but this would not work for this setup. I have modified the font code to use the pgm* family of functions to allocate some parts of the font to this progmem area and access them accordingly.
+For the fonts generated with lv_font_convert to work with this modified code, PROGMEM attributes should be added to required arrays. To see which parts need this attribute, you should look at the Roboto.c font in this repository as reference.
+
+#### Characters
+
 During message baking, a python script creates a list of all the unique characters present in the messages. By feeding these into lv_font_convert a lot of memory is saved.
 
 See the [message baking](#baking) section for an explanation on the baking step. 
