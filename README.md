@@ -78,7 +78,7 @@ The final step creates the C structures from the Roboto font for the rendering. 
 
 ### Circuit
 
-![circuit](readme/circuit.png Circuit)
+![circuit](readme/circuit.png "Circuit")
 
 Both the potentiometer and the button work by enabling the internal pull-up resistor of their connected pin. For the potentiometer, this creates a voltage divider where the potential on the input pin at  the max setting of 10k is about 1.1V, the internal reference voltage set in code. For lower resistor values the potential drops, using the full adc range at the input.
 The internal pull-up for the button is necessary to distinguish between pressed (0V at the input) and unpressed (1 at the input).
