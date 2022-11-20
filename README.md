@@ -71,7 +71,7 @@ The code assumes a certain format for the bmp, but not all of the assumed parame
 The generated bmp files are collected in the images/ folder.
 
 The second baking step is the python script to combine and convert the JSON files in the Messenger chat. Messenger creates multiple JSON files for a chat to limit their size. These files contain a lot more information which we won't need for this project.
-The script loops through every message, skips it if it doesn't have a ❤ reaction and collects it by author. The filenames in messages that are an image, gif or video message are mapped to an [8.3 filename](https://en.wikipedia.org/wiki/8.3_filename#:~:text=8.3%20filenames%20are%20limited%20to,filenames%2C%20excess%20characters%20are%20ignored.) and their corresponding .bmp file is renamed and copied to a directory of actually used images. In the end, each author's messages are written in the binary format above, and all the unicode codepoints are written to an temporary file.
+The script loops through every message, skips it if it doesn't have a ❤ reaction and collects it by author. The filenames in messages that are an image, gif or video message are mapped to an [8.3 filename](https://en.wikipedia.org/wiki/8.3_filename#:~:text=8.3%20filenames%20are%20limited%20to,filenames%2C%20excess%20characters%20are%20ignored.) and their corresponding .bmp file is renamed and copied to a directory of actually used images. In the end, each author's messages are written in the binary format above, and all the unicode codepoints are written to a temporary file.
 
 The final step creates the C structures from the Roboto font for the rendering. The font.sh file contains the instructions to lv_font_convert to create these files with the codepoints from the previous step.
 
